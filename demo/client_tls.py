@@ -1,12 +1,8 @@
-"""
-T30 - Custom HTTPS/TLS Client (validate cert day du)
-Chay: python3 client_tls.py
-Minh hoa: handshake -> lay cipher + cert -> gui HTTP GET -> nhan reply.
-Neu server dung attacker.crt -> se loi CERTIFICATE_VERIFY_FAILED (chong MITM).
-"""
+
 import socket
 import ssl
 import os
+import sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CA = os.path.join(BASE, "ca.crt")
@@ -18,9 +14,36 @@ ctx.load_verify_locations(CA)   # chi tin MiniCA cua nhom
 ctx.verify_mode = ssl.CERT_REQUIRED
 ctx.check_hostname = True       # bat buoc khop CN/SAN=localhost
 
-# Ket noi toi 127.0.0.1 nhung SNI/hostname phai la "localhost" de khop cert.
-with socket.create_connection((HOST, PORT)) as sock:
-    with ctx.wrap_socket(sock, server_hostname="localhost") as ssock:
+
+def die(msg):
+    print(f"[CLIENT] XX {msg}")
+    sys.exit(1)
+
+
+try:
+    # Ket noi toi 127.0.0.1 nhung SNI/hostname phai la "localhost" de khop cert.
+    sock = socket.create_connection((HOST, PORT), timeout=5)
+except ConnectionRefusedError:
+    die("khong ket noi duoc server (chua chay server_tls.py?)")
+except OSError as e:
+    die(f"loi ket noi: {e}")
+
+try:
+    ssock = ctx.wrap_socket(sock, server_hostname="localhost")
+except ssl.SSLCertVerificationError as e:
+    print("[CLIENT] XX HANDSHAKE FAILED - cert khong duoc tin cay")
+    print(f"[CLIENT]    reason : {e.reason}")
+    print(f"[CLIENT]    detail : {e.verify_message}")
+    print(f"[CLIENT]    code   : {e.verify_code}")
+    print("[CLIENT]    -> issuer khong nam trong truststore (ca.crt)")
+    sys.exit(1)
+except ssl.SSLError as e:
+    die(f"TLS handshake loi: {e}")
+except OSError as e:
+    die(f"socket loi trong handshake: {e}")
+
+with ssock:
+    try:
         print(f"[CLIENT] TLS version : {ssock.version()}")
         print(f"[CLIENT] Cipher       : {ssock.cipher()}")
         cert = ssock.getpeercert()
@@ -38,3 +61,5 @@ with socket.create_connection((HOST, PORT)) as sock:
         print("[CLIENT] ---- Server reply ----")
         print(data.decode(errors="replace"))
         print("[CLIENT] OK: cert hop le, du lieu duoc ma hoa (xem Wireshark: Application Data).")
+    except (ssl.SSLError, OSError) as e:
+        die(f"loi khi trao doi du lieu: {e}")

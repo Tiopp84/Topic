@@ -1,7 +1,7 @@
 #!/bin/bash
 # T30 Demo - Sinh CA + Server cert + Attacker cert (giả mạo để demo MITM)
-set -e
-cd "$(dirname "$0")"
+set -e # dừng script ngay khi có lệnh lỗi (exit != 0)
+cd "$(dirname "$0")" # Sinh file tại thư mục chứa script 
 
 echo "[*] Generating Mini CA..."
 openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
